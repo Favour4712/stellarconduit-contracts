@@ -55,7 +55,10 @@ pub fn remove_node(env: &Env, address: &Address) {
 }
 
 pub fn get_node_count(env: &Env) -> u32 {
-    env.storage().instance().get(&DataKey::NodeCount).unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&DataKey::NodeCount)
+        .unwrap_or(0)
 }
 
 pub fn set_node_count(env: &Env, count: u32) {
@@ -70,7 +73,10 @@ pub fn increment_node_count(env: &Env) {
 }
 
 pub fn get_min_stake(env: &Env) -> i128 {
-    env.storage().instance().get(&DataKey::MinStake).unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&DataKey::MinStake)
+        .unwrap_or(0)
 }
 
 pub fn set_min_stake(env: &Env, min_stake: i128) {

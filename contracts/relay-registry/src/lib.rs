@@ -10,8 +10,8 @@
 //! - Stake slashing for misbehaving relay nodes (`slash`)
 //! - Node lookup and active-status verification (`get_node`, `is_active`)
 //!
-//! ## Functions to implement
-//! - `register(env, node_address, metadata)` — Register a new relay node and verify minimum stake
+//! ## Functions
+//! - `register(env, node_address, metadata)` — Register a new relay node with metadata
 //! - `stake(env, amount)` — Deposit stake tokens into the registry
 //! - `unstake(env, amount)` — Initiate stake withdrawal, subject to lock period
 //! - `slash(env, node_address, reason)` — Slash a misbehaving relay node's stake
@@ -26,7 +26,6 @@
 //! implementation tracked in GitHub issue
 
 #![no_std]
-
 use soroban_sdk::{contract, contractimpl, Address, Env, String};
 
 pub mod errors;
@@ -41,32 +40,45 @@ pub struct RelayRegistryContract;
 
 #[contractimpl]
 impl RelayRegistryContract {
+    /// Register a new relay node with the given address and metadata.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment for the current contract invocation.
+    /// - `node_address`: Stellar account address of the relay node. Must authorize this call.
+    /// - `metadata`: Metadata describing the relay node's region, capacity, and uptime commitment.
+    ///
+    /// # Errors
+    /// - `ContractError::AlreadyRegistered` if a node with this address already exists.
+    /// - `ContractError::InvalidMetadata` if `metadata.uptime_commitment` is greater than 100.
     pub fn register(
         env: Env,
         node_address: Address,
         metadata: NodeMetadata,
-    ) -> Result<RelayNode, ContractError> {
+    ) -> Result<(), ContractError> {
         node_address.require_auth();
 
         if storage::get_node(&env, &node_address).is_some() {
             return Err(ContractError::AlreadyRegistered);
         }
-        if !Self::is_valid_metadata(&metadata) {
+
+        if metadata.uptime_commitment > 100 {
             return Err(ContractError::InvalidMetadata);
         }
 
+        let timestamp = env.ledger().timestamp();
+
         let node = RelayNode {
             address: node_address.clone(),
-            stake: storage::get_min_stake(&env),
-            status: NodeStatus::Active,
+            stake: 0,
+            status: NodeStatus::Inactive,
             metadata,
-            registered_at: env.ledger().timestamp(),
-            last_active: env.ledger().timestamp(),
+            registered_at: timestamp,
+            last_active: timestamp,
         };
 
         storage::set_node(&env, &node_address, &node);
         storage::increment_node_count(&env);
-        Ok(node)
+        Ok(())
     }
 
     pub fn stake(
@@ -79,7 +91,8 @@ impl RelayRegistryContract {
             return Err(ContractError::InsufficientStake);
         }
 
-        let mut node = storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
+        let mut node =
+            storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
         if matches!(node.status, NodeStatus::Slashed) {
             return Err(ContractError::NodeSlashed);
         }
@@ -109,7 +122,8 @@ impl RelayRegistryContract {
             return Err(ContractError::InsufficientStake);
         }
 
-        let mut node = storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
+        let mut node =
+            storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
         if matches!(node.status, NodeStatus::Slashed) {
             return Err(ContractError::NodeSlashed);
         }
@@ -146,7 +160,8 @@ impl RelayRegistryContract {
         node_address: Address,
         _reason: String,
     ) -> Result<RelayNode, ContractError> {
-        let mut node = storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
+        let mut node =
+            storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
         if matches!(node.status, NodeStatus::Slashed) {
             return Err(ContractError::NodeSlashed);
         }
@@ -167,9 +182,5 @@ impl RelayRegistryContract {
             storage::get_node(&env, &address).map(|n| n.status),
             Some(NodeStatus::Active)
         )
-    }
-
-    fn is_valid_metadata(metadata: &NodeMetadata) -> bool {
-        metadata.capacity > 0 && metadata.uptime_commitment <= 100 && metadata.region.len() > 0
     }
 }
