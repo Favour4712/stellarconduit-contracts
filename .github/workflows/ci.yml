@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Install Rust stable toolchain with WASM target
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none,wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      # Step 3: Cache Rust dependencies
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      # Step 4: Install Stellar CLI
+      - name: Install Stellar CLI
+        uses: stellar/stellar-cli@v23.0.1
+
+      # Step 5: Check formatting
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+      # Step 6: Lint
+      - name: Lint (Clippy)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      # Step 7: Run tests
+      - name: Run Tests
+        run: cargo test --workspace
+
+      # Step 8: Build contracts
+      - name: Build Contracts (WASM)
+        run: stellar contract build
