@@ -173,22 +173,45 @@ impl RelayRegistryContract {
         Ok(node)
     }
 
-    pub fn slash(
-        env: Env,
-        node_address: Address,
-        _reason: String,
-    ) -> Result<RelayNode, ContractError> {
+    /// Permanently penalize a misbehaving relay node by forfeiting its stake.
+    ///
+    /// This function cuts the target node's stake to 0 and permanently sets
+    /// its status to `Slashed`. Only the authorized admin can execute this.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `node_address`: Address of the relay node to slash.
+    /// - `reason`: A string explaining the reason for the slash (emitted as an event).
+    ///
+    /// # Errors
+    /// - `ContractError::NotRegistered` if the node is not in the registry.
+    /// - `ContractError::NodeSlashed` if the node is already slashed.
+    /// - (Auth) Soroban will automatically panic if the caller is not the `Admin`.
+    pub fn slash(env: Env, node_address: Address, reason: String) -> Result<(), ContractError> {
+        // Only the admin is authorized to slash nodes.
+        storage::get_admin(&env).require_auth();
+
         let mut node =
             storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
+
+        // Ensure we don't slash a node that is already slashed.
         if matches!(node.status, NodeStatus::Slashed) {
             return Err(ContractError::NodeSlashed);
         }
 
+        // Apply penalty: total loss of stake
         node.stake = 0;
         node.status = NodeStatus::Slashed;
         node.last_active = env.ledger().timestamp();
+
+        // TODO: transfer slashed stake to treasury
         storage::set_node(&env, &node_address, &node);
-        Ok(node)
+
+        // Emit an event so the slashing reason is auditable on-chain.
+        env.events()
+            .publish(("slash",), (node_address.clone(), reason));
+
+        Ok(())
     }
 
     pub fn get_node(env: Env, address: Address) -> Result<RelayNode, ContractError> {
