@@ -28,4 +28,16 @@ pub enum ContractError {
     DuplicateDispute = 8,
     /// Arithmetic overflow in dispute ID generation.
     Overflow = 9,
+    /// The dispute is not in Open status.
+    NotOpen = 10,
+    /// The resolution window has expired.
+    ResolutionWindowExpired = 11,
+    /// The resolution window is still active.
+    ResolutionWindowActive = 12,
+    /// The dispute has not been responded to.
+    NotResponded = 13,
+    /// The contract has already been initialized.
+    AlreadyInitialized = 14,
+    /// Invalid configuration parameter.
+    InvalidConfig = 15,
 }

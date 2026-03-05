@@ -17,8 +17,43 @@
 //!
 //! implementation tracked in GitHub issue
 
-#![allow(unused)]
-
 use soroban_sdk::contracterror;
 
-// implementation tracked in GitHub issue
+/// All error codes returned by the Protocol Treasury contract.
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ContractError {
+    /// Treasury balance is below the requested withdrawal amount.
+    InsufficientBalance = 1,
+
+    /// Caller is not authorized (not admin or multi-sig signer).
+    Unauthorized = 2,
+
+    /// Withdrawal or deposit amount is zero or negative.
+    InvalidAmount = 3,
+
+    /// Specified spending program has no allocation record.
+    ProgramNotFound = 4,
+
+    /// Withdrawal would exceed the program's remaining allocation.
+    AllocationExceeded = 5,
+
+    /// Recipient address fails validation.
+    InvalidRecipient = 6,
+
+    /// SAC token transfer call failed.
+    TokenTransferFailed = 7,
+
+    /// Entry ID counter has overflowed (unreachable in practice).
+    HistoryOverflow = 8,
+
+    /// Arithmetic overflow in balance arithmetic.
+    Overflow = 9,
+
+    /// Spending program is not currently active.
+    ProgramInactive = 10,
+
+    /// Allocation would exceed program budget.
+    ProgramOverBudget = 11,
+}
