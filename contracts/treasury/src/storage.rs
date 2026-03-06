@@ -24,8 +24,99 @@
 //!
 //! implementation tracked in GitHub issue
 
-#![allow(unused)]
+use soroban_sdk::{contracttype, Address, Env};
 
-use soroban_sdk::{contracttype, Address, Env, String};
+use crate::types::{SpendingProgram, TreasuryEntry};
 
-// implementation tracked in GitHub issue
+/// Storage keys for the treasury contract.
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    /// Current treasury token balance (i128).
+    Balance,
+    /// Total number of recorded treasury entries.
+    EntryCount,
+    /// A TreasuryEntry keyed by entry_id.
+    Entry(u64),
+    /// A SpendingProgram keyed by program_id.
+    SpendingProgram(u64),
+    /// Address authorized to perform withdrawals and allocations.
+    Admin,
+    /// The SAC (Stellar Asset Contract) address for the treasury token.
+    TokenAddress,
+}
+
+/// Load the current treasury balance.
+pub fn get_balance(env: &Env) -> i128 {
+    env.storage().instance().get(&DataKey::Balance).unwrap_or(0)
+}
+
+/// Persist an updated treasury balance.
+pub fn set_balance(env: &Env, balance: i128) {
+    env.storage().instance().set(&DataKey::Balance, &balance);
+}
+
+/// Load a specific history entry by ID.
+pub fn get_entry(env: &Env, entry_id: u64) -> Option<TreasuryEntry> {
+    env.storage().persistent().get(&DataKey::Entry(entry_id))
+}
+
+/// Append a new entry and increment the entry counter.
+pub fn set_entry(env: &Env, entry: TreasuryEntry) {
+    let count = get_entry_count(env);
+    let next_id = count + 1;
+    env.storage()
+        .persistent()
+        .set(&DataKey::Entry(next_id), &entry);
+    env.storage().instance().set(&DataKey::EntryCount, &next_id);
+}
+
+/// Return total number of entries in history.
+pub fn get_entry_count(env: &Env) -> u64 {
+    env.storage()
+        .instance()
+        .get(&DataKey::EntryCount)
+        .unwrap_or(0)
+}
+
+/// Load a spending program by ID.
+pub fn get_spending_program(env: &Env, program_id: u64) -> Option<SpendingProgram> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::SpendingProgram(program_id))
+}
+
+/// Persist a spending program.
+pub fn set_spending_program(env: &Env, program_id: u64, program: SpendingProgram) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::SpendingProgram(program_id), &program);
+}
+
+/// Load the treasury admin address.
+pub fn get_admin(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .expect("admin not initialized")
+}
+
+/// Set the treasury admin address.
+pub fn set_admin(env: &Env, admin: &Address) {
+    env.storage().instance().set(&DataKey::Admin, admin);
+}
+
+/// Load the treasury token SAC address.
+pub fn get_token_address(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::TokenAddress)
+        .expect("token address not initialized")
+}
+
+/// Set the treasury token SAC address.
+pub fn set_token_address(env: &Env, token_address: &Address) {
+    env.storage()
+        .instance()
+        .set(&DataKey::TokenAddress, token_address);
+}
