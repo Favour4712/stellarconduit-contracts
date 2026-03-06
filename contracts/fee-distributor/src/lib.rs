@@ -27,16 +27,53 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl};
+use soroban_sdk::{contract, contractimpl, Env};
 
 pub mod errors;
 pub mod storage;
 pub mod types;
+
+use crate::errors::ContractError;
 
 #[contract]
 pub struct FeeDistributorContract;
 
 #[contractimpl]
 impl FeeDistributorContract {
-    // implementation tracked in GitHub issue
+    /// Calculate the total fee for a given batch of transactions.
+    ///
+    /// This is a pure calculation function that reads the configured fee rate
+    /// and returns the total fee amount. No storage is written.
+    ///
+    /// # Formula
+    /// `fee = (batch_size as i128) * (fee_rate_bps as i128) / 10000`
+    ///
+    /// # Example
+    /// - With `fee_rate_bps = 50` (0.5%) and `batch_size = 200`:
+    ///   `fee = 200 * 50 / 10000 = 1`
+    /// - With `fee_rate_bps = 500` (5%) and `batch_size = 1000`:
+    ///   `fee = 1000 * 500 / 10000 = 50`
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `batch_size`: Number of transactions in the settled batch.
+    ///
+    /// # Errors
+    /// - `ContractError::InvalidBatchSize` if `batch_size` is zero.
+    /// - `ContractError::Overflow` if the calculation overflows.
+    pub fn calculate_fee(env: Env, batch_size: u32) -> Result<i128, ContractError> {
+        if batch_size == 0 {
+            return Err(ContractError::InvalidBatchSize);
+        }
+
+        let config = storage::get_fee_config(&env);
+
+        let total = (batch_size as i128)
+            .checked_mul(config.fee_rate_bps as i128)
+            .ok_or(ContractError::Overflow)?;
+
+        let fee = total.checked_div(10000).ok_or(ContractError::Overflow)?;
+
+        Ok(fee)
+    }
 }
