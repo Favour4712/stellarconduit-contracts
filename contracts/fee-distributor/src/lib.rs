@@ -27,7 +27,7 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env};
 
 pub mod errors;
 pub mod storage;
@@ -75,5 +75,74 @@ impl FeeDistributorContract {
         let fee = total.checked_div(10000).ok_or(ContractError::Overflow)?;
 
         Ok(fee)
+    }
+
+    /// Distribute the fee for a successfully settled transaction batch.
+    ///
+    /// This function calculates the fee, credits the relay node's earnings,
+    /// allocates the protocol treasury share, and permanently records the
+    /// distribution event.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `relay_address`: Address of the relay node that settled the batch.
+    /// - `batch_id`: Unique identifier of the settled transaction batch.
+    /// - `batch_size`: Number of transactions in the batch.
+    ///
+    /// # Errors
+    /// - `ContractError::BatchAlreadyDistributed` if `batch_id` has already been processed.
+    /// - `ContractError::InvalidBatchSize` if `batch_size` is zero.
+    /// - `ContractError::Overflow` if fee/split calculation overflows.
+    pub fn distribute(
+        env: Env,
+        relay_address: Address,
+        batch_id: u64,
+        batch_size: u32,
+    ) -> Result<(), ContractError> {
+        if storage::get_fee_entry(&env, batch_id).is_some() {
+            return Err(ContractError::BatchAlreadyDistributed);
+        }
+
+        let fee = Self::calculate_fee(env.clone(), batch_size)?;
+        let config = storage::get_fee_config(&env);
+
+        let treasury_share = fee
+            .checked_mul(config.treasury_share_bps as i128)
+            .ok_or(ContractError::Overflow)?
+            .checked_div(10000)
+            .ok_or(ContractError::Overflow)?;
+
+        let relay_payout = fee
+            .checked_sub(treasury_share)
+            .ok_or(ContractError::Overflow)?;
+
+        let mut record = storage::get_earnings(&env, &relay_address);
+        record.total_earned = record
+            .total_earned
+            .checked_add(relay_payout)
+            .ok_or(ContractError::Overflow)?;
+        record.unclaimed = record
+            .unclaimed
+            .checked_add(relay_payout)
+            .ok_or(ContractError::Overflow)?;
+
+        storage::set_earnings(&env, &relay_address, &record);
+
+        let entry = crate::types::FeeEntry {
+            batch_id,
+            relay_address: relay_address.clone(),
+            amount: fee,
+            treasury_share,
+            settled_at: env.ledger().timestamp(),
+        };
+        storage::set_fee_entry(&env, batch_id, &entry);
+
+        env.events().publish(
+            ("distribute",),
+            (relay_address.clone(), batch_id, relay_payout),
+        );
+
+        // TODO: SAC transfer treasury_share to treasury
+        Ok(())
     }
 }
