@@ -24,8 +24,41 @@
 //!
 //! implementation tracked in GitHub issue
 
-#![allow(unused)]
-
 use soroban_sdk::{contracttype, Address, String};
 
-// implementation tracked in GitHub issue
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EntryKind {
+    Deposit,
+    Withdrawal,
+    Allocation,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TreasuryEntry {
+    pub entry_id: u64,
+    pub kind: EntryKind,
+    pub amount: i128,
+    pub actor: Address,
+    pub recipient: Option<Address>,
+    pub reason: String,
+    pub ledger: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AllocationRecord {
+    pub program: String,
+    pub allocated: i128,
+    pub spent: i128,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SpendingProgram {
+    RelayIncentives,
+    UnderservedGrants,
+    ProtocolDevelopment,
+    Custom(String),
+}

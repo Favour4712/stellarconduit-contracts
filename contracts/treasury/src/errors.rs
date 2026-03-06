@@ -17,8 +17,20 @@
 //!
 //! implementation tracked in GitHub issue
 
-#![allow(unused)]
-
 use soroban_sdk::contracterror;
 
-// implementation tracked in GitHub issue
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ContractError {
+    InsufficientBalance = 1,
+    Unauthorized = 2,
+    InvalidAmount = 3,
+    ProgramNotFound = 4,
+    AllocationExceeded = 5,
+    InvalidRecipient = 6,
+    TokenTransferFailed = 7,
+    HistoryOverflow = 8,
+    Overflow = 9,
+    AlreadyInitialized = 10,
+}
