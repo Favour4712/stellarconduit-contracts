@@ -145,4 +145,46 @@ impl FeeDistributorContract {
         // TODO: SAC transfer treasury_share to treasury
         Ok(())
     }
+
+    /// Claim accumulated, unclaimed fees for a relay node.
+    ///
+    /// This allows a relay node to withdraw all its accumulated, unclaimed fees
+    /// to its own address. Upon successful claim, the unclaimed balance is reset
+    /// to zero, and the total claimed amount is increased.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `relay_address`: Address of the relay node claiming its fees. Must authorize the call.
+    ///
+    /// # Returns
+    /// The total amount of fees claimed in this transaction.
+    ///
+    /// # Errors
+    /// - `ContractError::NothingToClaim` if the relay node has no unclaimed earnings.
+    /// - `ContractError::Overflow` if the arithmetic for updating `total_claimed` overflows.
+    pub fn claim(env: Env, relay_address: Address) -> Result<i128, ContractError> {
+        relay_address.require_auth();
+
+        let mut record = storage::get_earnings(&env, &relay_address);
+
+        if record.unclaimed == 0 {
+            return Err(ContractError::NothingToClaim);
+        }
+
+        let payout = record.unclaimed;
+
+        record.total_claimed = record
+            .total_claimed
+            .checked_add(payout)
+            .ok_or(ContractError::Overflow)?;
+        record.unclaimed = 0;
+
+        storage::set_earnings(&env, &relay_address, &record);
+
+        env.events()
+            .publish(("claim",), (relay_address.clone(), payout));
+
+        // TODO: SAC transfer payout to relay_address
+        Ok(payout)
+    }
 }
