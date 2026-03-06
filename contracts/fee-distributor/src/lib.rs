@@ -187,4 +187,49 @@ impl FeeDistributorContract {
         // TODO: SAC transfer payout to relay_address
         Ok(payout)
     }
+
+    /// Retrieve the cumulative earnings record for a relay node.
+    ///
+    /// This is a read-only view function that returns the total earned,
+    /// total claimed, and currently unclaimed fees for the given relay node.
+    /// If the node has no earnings history, it returns a zeroed record.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `relay_address`: Address of the relay node.
+    ///
+    /// # Returns
+    /// An `EarningsRecord` containing the relay node's fee history.
+    pub fn get_earnings(env: Env, relay_address: Address) -> crate::types::EarningsRecord {
+        storage::get_earnings(&env, &relay_address)
+    }
+
+    /// Update the protocol fee rate.
+    ///
+    /// This function can only be called by the configured admin address.
+    /// The fee rate is specified in basis points (bps), where 10000 = 100%.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `new_fee_rate_bps`: The new fee rate in basis points (1 to 10000).
+    ///
+    /// # Errors
+    /// - Auth error if caller is not the admin.
+    /// - `ContractError::InvalidFeeRate` if the rate is 0 or greater than 10000.
+    pub fn set_fee_rate(env: Env, new_fee_rate_bps: u32) -> Result<(), ContractError> {
+        let mut config = storage::get_fee_config(&env);
+
+        config.admin.require_auth();
+
+        if new_fee_rate_bps == 0 || new_fee_rate_bps > 10_000 {
+            return Err(ContractError::InvalidFeeRate);
+        }
+
+        config.fee_rate_bps = new_fee_rate_bps;
+        storage::set_fee_config(&env, &config);
+
+        env.events().publish(("set_fee_rate",), (new_fee_rate_bps,));
+
+        Ok(())
+    }
 }
