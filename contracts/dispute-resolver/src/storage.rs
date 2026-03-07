@@ -33,6 +33,8 @@ pub enum DataKey {
     ResolutionWindow,
     Admin,
     TxDispute(BytesN<32>),
+    /// Stores the raw 32-byte Ed25519 public key for an Address.
+    PublicKey(Address),
 }
 
 /// Load a dispute by its ID. Returns None if not found.
@@ -122,4 +124,24 @@ pub fn set_dispute_by_tx(env: &Env, tx_id: &BytesN<32>, dispute_id: u64) {
     env.storage()
         .persistent()
         .set(&DataKey::TxDispute(tx_id.clone()), &dispute_id);
+}
+
+/// Load the raw 32-byte Ed25519 public key for an address.
+///
+/// Panics if the key has not been registered via `set_public_key`.
+pub fn get_public_key(env: &Env, address: &Address) -> BytesN<32> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::PublicKey(address.clone()))
+        .expect("public key not registered for address")
+}
+
+/// Register the raw 32-byte Ed25519 public key for an address.
+///
+/// Must be called before `raise_dispute` or `respond` so that `resolve`
+/// can perform signature verification.
+pub fn set_public_key(env: &Env, address: &Address, public_key: &BytesN<32>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PublicKey(address.clone()), public_key);
 }

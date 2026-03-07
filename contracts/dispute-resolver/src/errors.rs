@@ -40,4 +40,6 @@ pub enum ContractError {
     AlreadyInitialized = 14,
     /// Invalid configuration parameter.
     InvalidConfig = 15,
+    /// One or both relay chain proof signatures failed Ed25519 verification.
+    InvalidProofSignature = 16,
 }
