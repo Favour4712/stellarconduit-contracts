@@ -33,6 +33,9 @@ pub mod errors;
 pub mod storage;
 pub mod types;
 
+#[cfg(test)]
+mod test;
+
 use crate::errors::ContractError;
 
 #[contract]
@@ -40,6 +43,50 @@ pub struct FeeDistributorContract;
 
 #[contractimpl]
 impl FeeDistributorContract {
+    /// Initialize the contract with admin address, fee rate, treasury share, and treasury address.
+    ///
+    /// This is a one-time setup function called immediately after the contract is deployed.
+    /// It sets the admin address, fee rate, treasury share percentage, and treasury address.
+    /// It can only be called once.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment for the current contract invocation.
+    /// - `admin`: Address of the admin account authorized to update fee config.
+    /// - `fee_rate_bps`: Fee rate in basis points (e.g., 50 = 0.5%). Must be between 1 and 10000.
+    /// - `treasury_share_bps`: Treasury's share of each distribution in basis points (e.g., 1000 = 10%).
+    /// - `treasury`: Address of the treasury contract that receives the treasury share.
+    ///
+    /// # Errors
+    /// - `ContractError::AlreadyInitialized` if the contract has already been initialized.
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        fee_rate_bps: u32,
+        treasury_share_bps: u32,
+        treasury: Address,
+    ) -> Result<(), ContractError> {
+        // Guard against re-initialization
+        if env.storage().instance().has(&storage::DataKey::FeeConfig) {
+            return Err(ContractError::AlreadyInitialized);
+        }
+
+        // Validate fee rate
+        if fee_rate_bps == 0 || fee_rate_bps > 10_000 {
+            return Err(ContractError::InvalidFeeRate);
+        }
+
+        // Persist config
+        let config = crate::types::FeeConfig {
+            fee_rate_bps,
+            treasury_share_bps,
+            admin: admin.clone(),
+        };
+        storage::set_fee_config(&env, &config);
+        storage::set_treasury_address(&env, &treasury);
+
+        Ok(())
+    }
+
     /// Calculate the total fee for a given batch of transactions.
     ///
     /// This is a pure calculation function that reads the configured fee rate

@@ -34,4 +34,7 @@ pub enum ContractError {
 
     /// Arithmetic overflow in fee calculation.
     Overflow = 8,
+
+    /// Contract has already been initialized.
+    AlreadyInitialized = 9,
 }
