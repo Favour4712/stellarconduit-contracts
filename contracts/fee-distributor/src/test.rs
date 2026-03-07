@@ -12,9 +12,7 @@ use soroban_sdk::{
     Address, Env,
 };
 
-use crate::{
-    errors::ContractError, FeeDistributorContract, FeeDistributorContractClient,
-};
+use crate::{errors::ContractError, FeeDistributorContract, FeeDistributorContractClient};
 
 fn setup<'a>() -> (Env, FeeDistributorContractClient<'a>) {
     let env = Env::default();
