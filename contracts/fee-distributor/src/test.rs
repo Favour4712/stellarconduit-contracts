@@ -152,7 +152,10 @@ fn test_distribute_success() {
     let mut found = false;
     for event in events.iter() {
         let (_contract, topics, _data) = event;
-        if topics.len() > 0 && topics.get(0).unwrap() == env.bytes_new_from_slice("distribute".as_bytes()) {
+        if topics.len() > 0 {
+            let topic_bytes = topics.get(0).unwrap();
+            let distribute_bytes = soroban_sdk::Bytes::from_slice(&env, "distribute".as_bytes());
+            if topic_bytes == distribute_bytes {
             found = true;
             break;
         }
