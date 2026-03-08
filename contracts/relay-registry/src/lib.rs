@@ -198,6 +198,40 @@ impl RelayRegistryContract {
         Ok(())
     }
 
+    /// Update the metadata of an already registered relay node.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment for the current contract invocation.
+    /// - `node_address`: Stellar account address of the relay node. Must authorize this call.
+    /// - `new_metadata`: The new NodeMetadata to apply.
+    ///
+    /// # Errors
+    /// - `ContractError::NotRegistered` if the node is not found in the registry.
+    /// - `ContractError::InvalidMetadata` if `new_metadata.uptime_commitment` > 100 or `region` is too long.
+    pub fn update_metadata(
+        env: Env,
+        node_address: Address,
+        new_metadata: NodeMetadata,
+    ) -> Result<(), ContractError> {
+        node_address.require_auth();
+
+        let mut node =
+            storage::get_node(&env, &node_address).ok_or(ContractError::NotRegistered)?;
+
+        if new_metadata.uptime_commitment > 100 || new_metadata.region.len() > 32 {
+            return Err(ContractError::InvalidMetadata);
+        }
+
+        node.metadata = new_metadata;
+
+        storage::set_node(&env, &node_address, &node);
+
+        env.events()
+            .publish(("update_metadata",), (node_address.clone(),));
+
+        Ok(())
+    }
+
     /// Deposit stake tokens on-chain for a registered relay node.
     ///
     /// This function allows a registered relay node to deposit stake tokens on-chain.
