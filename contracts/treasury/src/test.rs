@@ -341,3 +341,164 @@ fn test_allocate_insufficient_treasury_balance() {
         Err(Ok(crate::errors::ContractError::InsufficientBalance))
     );
 }
+
+#[test]
+fn test_get_treasury_stats_default() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = create_treasury_contract(&env);
+
+    // Before any operations, stats should be all zeros
+    let stats = client.get_treasury_stats();
+    assert_eq!(stats.current_balance, 0);
+    assert_eq!(stats.lifetime_deposited, 0);
+    assert_eq!(stats.lifetime_withdrawn, 0);
+    assert_eq!(stats.lifetime_allocated, 0);
+}
+
+#[test]
+fn test_get_treasury_stats_after_deposit() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = create_treasury_contract(&env);
+    let from = Address::generate(&env);
+
+    let (token_client, token_address) = create_token_contract(&env, &from);
+    token_client.mint(&from, &10000);
+
+    env.as_contract(&client.address, || {
+        storage::set_token_address(&env, &token_address);
+    });
+
+    client.deposit(&from, &1000);
+    let stats = client.get_treasury_stats();
+    assert_eq!(stats.current_balance, 1000);
+    assert_eq!(stats.lifetime_deposited, 1000);
+    assert_eq!(stats.lifetime_withdrawn, 0);
+    assert_eq!(stats.lifetime_allocated, 0);
+
+    // Second deposit
+    client.deposit(&from, &2000);
+    let stats = client.get_treasury_stats();
+    assert_eq!(stats.current_balance, 3000);
+    assert_eq!(stats.lifetime_deposited, 3000);
+}
+
+#[test]
+fn test_get_treasury_stats_after_withdraw() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = create_treasury_contract(&env);
+    let admin = Address::generate(&env);
+    let to = Address::generate(&env);
+
+    let (token_client, token_address) = create_token_contract(&env, &admin);
+    token_client.mint(&admin, &10000);
+
+    env.as_contract(&client.address, || {
+        let mut members = soroban_sdk::Vec::new(&env);
+        members.push_back(admin.clone());
+        let council = crate::types::AdminCouncil {
+            members,
+            threshold: 1,
+        };
+        storage::set_admin_council(&env, &council);
+        storage::set_token_address(&env, &token_address);
+    });
+
+    client.deposit(&admin, &5000);
+    client.withdraw(&to, &1500, &String::from_str(&env, "test withdraw"));
+
+    let stats = client.get_treasury_stats();
+    assert_eq!(stats.current_balance, 3500);
+    assert_eq!(stats.lifetime_deposited, 5000);
+    assert_eq!(stats.lifetime_withdrawn, 1500);
+    assert_eq!(stats.lifetime_allocated, 0);
+}
+
+#[test]
+fn test_get_treasury_stats_after_allocate() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = create_treasury_contract(&env);
+    let admin = Address::generate(&env);
+
+    let (token_client, token_address) = create_token_contract(&env, &admin);
+    token_client.mint(&admin, &20000);
+
+    env.as_contract(&client.address, || {
+        let mut members = soroban_sdk::Vec::new(&env);
+        members.push_back(admin.clone());
+        let council = crate::types::AdminCouncil {
+            members,
+            threshold: 1,
+        };
+        storage::set_admin_council(&env, &council);
+        storage::set_token_address(&env, &token_address);
+        let program = SpendingProgram {
+            program_id: 1,
+            name: String::from_str(&env, "Test Program"),
+            budget: 5000,
+            spent: 0,
+            active: true,
+        };
+        storage::set_spending_program(&env, 1, program);
+    });
+
+    client.deposit(&admin, &10000);
+    client.allocate(&1, &2000);
+
+    let stats = client.get_treasury_stats();
+    assert_eq!(stats.current_balance, 8000);
+    assert_eq!(stats.lifetime_deposited, 10000);
+    assert_eq!(stats.lifetime_withdrawn, 0);
+    assert_eq!(stats.lifetime_allocated, 2000);
+}
+
+#[test]
+fn test_get_treasury_stats_full_lifecycle() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = create_treasury_contract(&env);
+    let admin = Address::generate(&env);
+    let to = Address::generate(&env);
+
+    let (token_client, token_address) = create_token_contract(&env, &admin);
+    token_client.mint(&admin, &50000);
+
+    env.as_contract(&client.address, || {
+        let mut members = soroban_sdk::Vec::new(&env);
+        members.push_back(admin.clone());
+        let council = crate::types::AdminCouncil {
+            members,
+            threshold: 1,
+        };
+        storage::set_admin_council(&env, &council);
+        storage::set_token_address(&env, &token_address);
+        let program = SpendingProgram {
+            program_id: 1,
+            name: String::from_str(&env, "Test Program"),
+            budget: 10000,
+            spent: 0,
+            active: true,
+        };
+        storage::set_spending_program(&env, 1, program);
+    });
+
+    // Multiple deposits
+    client.deposit(&admin, &10000);
+    client.deposit(&admin, &5000);
+
+    // Withdrawal
+    client.withdraw(&to, &3000, &String::from_str(&env, "grant"));
+
+    // Allocation
+    client.allocate(&1, &4000);
+
+    // Final stats check
+    let stats = client.get_treasury_stats();
+    assert_eq!(stats.current_balance, 8000); // 15000 - 3000 - 4000
+    assert_eq!(stats.lifetime_deposited, 15000); // 10000 + 5000
+    assert_eq!(stats.lifetime_withdrawn, 3000);
+    assert_eq!(stats.lifetime_allocated, 4000);
+}

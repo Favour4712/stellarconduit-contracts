@@ -89,3 +89,17 @@ pub struct SpendingProgram {
     /// Human-readable name/description.
     pub name: String,
 }
+
+/// Aggregate statistics for the treasury, used for dashboard integration.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TreasuryStats {
+    /// Current treasury token balance.
+    pub current_balance: i128,
+    /// Total tokens deposited over the treasury's lifetime.
+    pub lifetime_deposited: i128,
+    /// Total tokens withdrawn over the treasury's lifetime.
+    pub lifetime_withdrawn: i128,
+    /// Total tokens allocated to spending programs over the treasury's lifetime.
+    pub lifetime_allocated: i128,
+}

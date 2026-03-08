@@ -26,7 +26,7 @@
 
 use soroban_sdk::{contracttype, Address, Env, String};
 
-use crate::types::{AdminCouncil, AllocationRecord, SpendingProgram, TreasuryEntry};
+use crate::types::{AdminCouncil, AllocationRecord, SpendingProgram, TreasuryEntry, TreasuryStats};
 
 /// Storage keys for the treasury contract.
 #[contracttype]
@@ -46,6 +46,8 @@ pub enum DataKey {
     AdminCouncil,
     /// The SAC (Stellar Asset Contract) address for the treasury token.
     TokenAddress,
+    /// Aggregate treasury statistics for dashboard integration.
+    Stats,
 }
 
 pub fn get_balance(env: &Env) -> i128 {
@@ -151,4 +153,22 @@ pub fn set_token_address(env: &Env, token_address: &Address) {
     env.storage()
         .instance()
         .set(&DataKey::TokenAddress, token_address);
+}
+
+/// Load the treasury statistics. Returns default zeros if not found.
+pub fn get_stats(env: &Env) -> TreasuryStats {
+    env.storage()
+        .instance()
+        .get(&DataKey::Stats)
+        .unwrap_or(TreasuryStats {
+            current_balance: 0,
+            lifetime_deposited: 0,
+            lifetime_withdrawn: 0,
+            lifetime_allocated: 0,
+        })
+}
+
+/// Persist the treasury statistics.
+pub fn set_stats(env: &Env, stats: &TreasuryStats) {
+    env.storage().instance().set(&DataKey::Stats, stats);
 }

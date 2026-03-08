@@ -34,7 +34,7 @@ pub mod storage;
 pub mod types;
 
 use crate::errors::ContractError;
-use crate::types::{AdminCouncil, EntryKind, TreasuryEntry};
+use crate::types::{AdminCouncil, EntryKind, TreasuryEntry, TreasuryStats};
 
 fn require_council_auth(env: &Env) {
     let council = storage::get_admin_council(env);
@@ -115,6 +115,14 @@ impl TreasuryContract {
         let new_balance = balance.checked_add(amount).ok_or(ContractError::Overflow)?;
         storage::set_balance(&env, new_balance);
 
+        // Update lifetime stats
+        let mut stats = storage::get_stats(&env);
+        stats.lifetime_deposited = stats
+            .lifetime_deposited
+            .checked_add(amount)
+            .ok_or(ContractError::Overflow)?;
+        storage::set_stats(&env, &stats);
+
         let entry = TreasuryEntry {
             kind: EntryKind::Deposit,
             amount,
@@ -165,6 +173,14 @@ impl TreasuryContract {
 
         let new_balance = balance.checked_sub(amount).ok_or(ContractError::Overflow)?;
         storage::set_balance(&env, new_balance);
+
+        // Update lifetime stats
+        let mut stats = storage::get_stats(&env);
+        stats.lifetime_withdrawn = stats
+            .lifetime_withdrawn
+            .checked_add(amount)
+            .ok_or(ContractError::Overflow)?;
+        storage::set_stats(&env, &stats);
 
         let entry = TreasuryEntry {
             kind: EntryKind::Withdrawal,
@@ -231,6 +247,14 @@ impl TreasuryContract {
         let new_balance = balance.checked_sub(amount).ok_or(ContractError::Overflow)?;
         storage::set_balance(&env, new_balance);
 
+        // Update lifetime stats
+        let mut stats = storage::get_stats(&env);
+        stats.lifetime_allocated = stats
+            .lifetime_allocated
+            .checked_add(amount)
+            .ok_or(ContractError::Overflow)?;
+        storage::set_stats(&env, &stats);
+
         let entry = TreasuryEntry {
             kind: EntryKind::Allocation,
             amount,
@@ -253,6 +277,24 @@ impl TreasuryContract {
         // token.transfer(&env.current_contract_address(), &program_recipient_address, &amount);
 
         Ok(())
+    }
+
+    /// Returns aggregate statistics for the treasury.
+    ///
+    /// This is a read-only view function intended for dashboard integration.
+    /// Returns cumulative totals for deposits, withdrawals, and allocations.
+    ///
+    /// # Returns
+    /// - `TreasuryStats` struct containing:
+    ///   - `current_balance`: Current treasury token balance
+    ///   - `lifetime_deposited`: Total tokens deposited over the treasury's lifetime
+    ///   - `lifetime_withdrawn`: Total tokens withdrawn over the treasury's lifetime
+    ///   - `lifetime_allocated`: Total tokens allocated to spending programs
+    pub fn get_treasury_stats(env: Env) -> TreasuryStats {
+        let mut stats = storage::get_stats(&env);
+        // current_balance is dynamic, fetch it fresh to ensure accuracy
+        stats.current_balance = storage::get_balance(&env);
+        stats
     }
 }
 
